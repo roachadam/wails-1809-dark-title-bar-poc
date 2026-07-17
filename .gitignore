@@ -1,0 +1,7 @@
+# Build artifacts
+*.exe
+poc
+
+# Go workspace
+go.work
+go.work.sum
