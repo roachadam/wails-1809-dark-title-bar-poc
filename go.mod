@@ -2,6 +2,9 @@ module github.com/roachadam/wails-1809-dark-title-bar-poc
 
 go 1.25.0
 
+// Builds against the official tagged release so this reproduces the panic
+// out of the box. To verify the fix instead, add a replace pointing at the
+// patched fork branch — see README.md ("Verify the fix").
 require github.com/wailsapp/wails/v3 v3.0.0-alpha2.117
 
 require (
@@ -14,9 +17,3 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 )
-
-// Build against a local clone of the patched Wails fork so the fix can be
-// tested before it is upstreamed. Clone github.com/roachadam/wails, check out
-// the fix/windows-1809-dark-title-bar branch, and place it next to this repo
-// (i.e. ../wails). See README.md.
-replace github.com/wailsapp/wails/v3 => ../wails/v3

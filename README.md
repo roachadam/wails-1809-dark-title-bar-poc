@@ -1,18 +1,18 @@
 # wails-1809-dark-title-bar-poc
 
-A minimal [Wails v3](https://github.com/wailsapp/wails) app that reproduces — and
-verifies the fix for — a dark title-bar problem on **Windows 10 1809 / build
-17763** (which includes **Windows Server 2019**).
+A minimal [Wails v3](https://github.com/wailsapp/wails) app that reproduces a
+startup **panic** on **Windows 10 1809 / build 17763** (which includes **Windows
+Server 2019**), and can also be used to verify the fix.
 
-## The problem
+## The bug
 
-On Wails v3 `alpha2.117`, a window that requests a dark native title bar via:
+A window that requests a dark native title bar via:
 
 ```go
 Windows: application.WindowsWindow{ Theme: application.Dark }
 ```
 
-crashes on startup on Windows 10 1809 (build 17763):
+crashes on startup on Windows 10 1809 (build 17763), before the window is shown:
 
 ```
 panic: runtime error: invalid memory address or nil pointer dereference
@@ -20,41 +20,49 @@ panic: runtime error: invalid memory address or nil pointer dereference
     webview_window_windows.go:580
 ```
 
-Root cause: Wails loads the undocumented dark-mode `uxtheme` exports only on
-build ≥ 18334, but calls `AllowDarkModeForWindow` unguarded — so on 1809 the
-proc is `nil` and dereferencing it panics. Separately, even without the crash,
-1809 needs a different mechanism than modern Windows to actually darken the
-title bar (the DWM `DWMWA_USE_IMMERSIVE_DARK_MODE` attribute is 1903+ only).
+Root cause: Wails loads the undocumented dark-mode `uxtheme` exports (incl.
+`AllowDarkModeForWindow`, ordinal 133) only on build ≥ 18334, but calls
+`AllowDarkModeForWindow` unguarded — so on 1809 the proc is `nil` and
+dereferencing it panics. Upstream issue: wailsapp/wails#5792.
 
-## The fix
+## Reproduce the panic
 
-Lives on the Wails fork branch
-[`roachadam/wails@fix/windows-1809-dark-title-bar`](https://github.com/roachadam/wails/tree/fix/windows-1809-dark-title-bar):
+This repo builds against the **official tagged release**
+(`v3.0.0-alpha2.117`), so no extra setup is needed:
 
-1. Nil-guard the `AllowDarkModeForWindow` calls in the window theme setup.
-2. Lower the `uxtheme` proc-load gate to 17763 so the app-level dark opt-in runs
-   on 1809.
-3. Route the title bar per build in `SetTheme`: the DWM immersive-dark attribute
-   on 1903+, and the legacy per-window property + a forced non-client repaint on
-   1809.
+```sh
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o poc.exe .
+```
 
-**Result (verified on Windows Server 2019, build 17763, system in dark mode):**
-the window opens without a panic and the title bar is dark.
+Copy `poc.exe` to a Windows 10 1809 / Windows Server 2019 host (with the
+WebView2 runtime installed) and run it. It panics on startup and no window
+appears.
 
-## Build & run
+## Verify the fix
 
-This repo builds against a **local clone of the patched Wails fork** via a
-relative `replace` directive (`../wails/v3`). Set it up as a sibling directory:
+The fix lives on the Wails fork
+[`roachadam/wails`](https://github.com/roachadam/wails). Point this repo at it
+with a local `replace`:
 
 ```sh
 # clone the patched fork next to this repo
 git clone https://github.com/roachadam/wails.git ../wails
-git -C ../wails checkout fix/windows-1809-dark-title-bar
 
-# cross-compile a Windows binary (Wails v3 Windows needs no CGO)
+# pick the branch to verify:
+#   fix/windows-1809-dark-mode-panic   -> crash fix only (window opens; light title bar on 1809)
+#   fix/windows-1809-dark-title-bar    -> crash fix + dark title bar on 1809
+git -C ../wails checkout fix/windows-1809-dark-mode-panic
+
+# build against the fork
+go mod edit -replace github.com/wailsapp/wails/v3=../wails/v3
+go mod tidy
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o poc.exe .
+
+# revert when done
+go mod edit -dropreplace github.com/wailsapp/wails/v3
+go mod tidy
 ```
 
-Copy `poc.exe` to a Windows 10 1809 / Server 2019 host (with the WebView2
-runtime installed) and run it. With the system in dark mode, the title bar
-should be dark; without the fix it panics on startup instead.
+Run `poc.exe` on the same 1809 host: with the crash-fix branch the window opens
+(no panic); with the dark-title-bar branch the title bar is dark when the system
+is in dark mode.

@@ -1,14 +1,16 @@
-// Command wailspoc is a minimal Wails v3 app used to verify the Windows Server
-// 2019 (build 17763 / 1809) dark-mode title-bar fix.
+// Command wailspoc is a minimal Wails v3 app that reproduces a startup panic on
+// Windows 10 1809 (build 17763), including Windows Server 2019.
 //
-// It creates a single window that requests a Dark native title bar. On an
-// unpatched Wails this panics on startup (nil AllowDarkModeForWindow); with the
-// fix the window should open, and — if the 1809 legacy path works — its title
-// bar should be dark.
+// It creates a single window that requests a Dark native title bar. Built
+// against the official tagged Wails release, running it on 1809 panics on
+// startup with a nil pointer dereference (nil AllowDarkModeForWindow), before
+// the window is shown. Built against the patched fork branch, the window opens
+// instead — and with the dark-title-bar branch its title bar is dark when the
+// system is in dark mode. See README.md.
 //
-// Build a Windows binary from macOS/Linux (no CGO needed for Wails v3 Windows):
+// Build a Windows binary from macOS/Linux (Wails v3 Windows needs no CGO):
 //
-//	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o Ordara-DarkModePOC.exe .
+//	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o poc.exe .
 package main
 
 import (
@@ -35,8 +37,10 @@ const page = `<!doctype html>
 <body>
   <h1>Wails 1809 dark title-bar POC</h1>
   <p>Requested native theme: <code>application.Dark</code></p>
-  <p>Built against patched Wails &rarr; the window opens (no nil-pointer panic),
-     and on Windows 10 1809 / Server 2019 in dark mode the <b>title bar</b> is dark.</p>
+  <p>You are seeing this window, so Wails did <b>not</b> panic &mdash; you built
+     against the patched fork, or you are on a build &ge; 18334.</p>
+  <p>On Windows 10 1809 / Server 2019 with the official release, this panics
+     before the window appears.</p>
 </body>
 </html>`
 
